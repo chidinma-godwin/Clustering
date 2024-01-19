@@ -11,6 +11,8 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
+from sklearn.preprocessing import RobustScaler
+
 
 def read_and_clean_data(filename):
     """
@@ -169,3 +171,17 @@ df_selected = df_2021[selected_columns]
 # Examine the distribution of the data to enable choosing the right scaler
 make_boxplot(
     df_selected, "Distribution of GNI and Life Expectancy in 2019", 2)
+
+# Since the GNI column has some outliers, use RobustScaler which is
+# robust to outliers
+scaler = RobustScaler()
+scaled_arr = scaler.fit_transform(df_selected)
+df_scaled = pd.DataFrame(scaled_arr, columns=selected_columns,
+                         index=df_2021.index)
+
+# Show a scatterplot of the scaled selected indicators
+fig, ax = plt.subplots()
+df_scaled.plot.scatter(x=0, y=1, s=10, marker="o", ax=ax)
+ax.set_title("Relationship Between GNI and Life Expectancy",
+             fontsize=16, fontweight="bold")
+plt.show()
