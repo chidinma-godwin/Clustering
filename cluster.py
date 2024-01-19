@@ -9,9 +9,12 @@ Created on Fri Jan 12 17:56:06 2024
 import pandas as pd
 import numpy as np
 
+from matplotlib import colormaps as cm
 import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import RobustScaler
+import sklearn.cluster as cluster
+import sklearn.metrics as skmet
 
 
 def read_and_clean_data(filename):
@@ -61,7 +64,7 @@ def read_and_clean_data(filename):
 
 def show_correlation(corr):
     """
-    Plot heatmap to show the correlation between indicators
+    Plots heatmap to show the correlation between indicators
 
     Parameters
     ----------
@@ -155,6 +158,123 @@ def make_boxplot(df, title, n_cols):
     return
 
 
+def get_silhoutte_score(scaled_df, num_clusters):
+    """
+    Computes the silhoutte score for the data based on the required
+    number of clusters
+
+    Parameters
+    ----------
+    scaled_df : DataFrame
+        The scaled dataframe.
+    num_clusters : int
+        The number of clusters to create.
+
+    Returns
+    -------
+    score : float
+        The obtained silhoutte score.
+
+    """
+    # Set up the clusterer and set a random seed to ensure replicability
+    kmeans = cluster.KMeans(n_clusters=num_clusters, n_init=20,
+                            random_state=10)
+
+    # Fit the data, the results are stored in the kmeans object
+    kmeans.fit(scaled_df)
+
+    # Calculate the silhoutte score
+    score = skmet.silhouette_score(scaled_df, kmeans.labels_)
+
+    return score
+
+
+def plot_silhoute_scores(scaled_df):
+    """
+    Makes a line plot of the silhoutte scores for different cluster numbers
+
+    Parameters
+    ----------
+    scaled_df : DataFrame
+        The scaledDataFrame.
+
+    Returns
+    -------
+    None.
+
+    """
+    # Calculate silhouette score for 2 to 10 clusters and plot the scores
+    scores = []
+    for i in range(2, 10):
+        score = get_silhoutte_score(scaled_df, i)
+        scores.append([i, score])
+
+    scores_arr = np.array(scores)
+
+    fig, ax = plt.subplots()
+
+    ax.plot(scores_arr[:, 0], scores_arr[:, 1], marker="o")
+    ax.set_xlim(2, 9)
+
+    ax.set_xlabel("Number of cluster")
+    ax.set_ylabel("Silhoutte Score")
+    ax.set_title("Silhoutte Score for Different Number of Clusters")
+
+    plt.show()
+
+
+def show_clusters(original_df, scaled_df):
+    """
+    Creates scatter plot showing clusters of countries in the dataset
+
+    Parameters
+    ----------
+    original_df : DataFrame
+        The original dataframe before it was scaled.
+    scaled_df : DataFrame
+        The scaled dataframe.
+
+    Returns
+    -------
+    cluster_labels : list of integers
+        The cluster labels assigned to each data point.
+
+    """
+    # Set up the clusterer with the number of expected clusters
+    kmeans = cluster.KMeans(n_clusters=3, n_init=20, random_state=10)
+
+    # Fit the data
+    kmeans.fit(scaled_df)
+
+    # Extract cluster labels
+    cluster_labels = kmeans.labels_
+
+    # Extract the estimated cluster centres
+    cen = kmeans.cluster_centers_
+    # Convert the extracted centres to the original scales
+    cen = scaler.inverse_transform(cen)
+
+    xkmeans = cen[:, 0]
+    ykmeans = cen[:, 1]
+
+    fig, ax = plt.subplots()
+
+    # Plot the original data showing the kmeans clusters
+    original_df.plot.scatter(x=0, y=1, s=10, c=cluster_labels, marker="o",
+                             colormap=cm["Paired"], colorbar=False, ax=ax)
+
+    # Show cluster centres
+    ax.scatter(xkmeans, ykmeans, 45, "k", marker="d")
+
+    ax.set_title("Cluster of Countries Data")
+
+    plt.savefig("Cluster.png")
+
+    plt.show()
+
+    return cluster_labels
+
+
 df_countries, df_transposed = read_and_clean_data("data.csv")
 
 # Get the data for all countries in the year 2021 and drop
@@ -185,3 +305,12 @@ df_scaled.plot.scatter(x=0, y=1, s=10, marker="o", ax=ax)
 ax.set_title("Relationship Between GNI and Life Expectancy",
              fontsize=16, fontweight="bold")
 plt.show()
+
+# View the silhoutte scores to enable picking the appropraite cluster number
+plot_silhoute_scores(df_scaled)
+
+# Plot the clustered data on the original scale
+cluster_labels = show_clusters(df_selected, df_scaled)
+
+# Add the cluster labels to the original 2021 data
+df_2021["Cluster"] = cluster_labels
