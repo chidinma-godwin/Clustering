@@ -52,14 +52,9 @@ def read_and_clean_data(filename):
                      "Population growth (annual %)": "Population growth"},
               level=1, inplace=True)
 
-    # Unstack the dataframe so that "Country Name" is the only column, drop
-    # drop countries with missing data and stack the dataframe back to its
-    # original shape
-    cleaned_df = df.unstack("Series Name").dropna().stack()
+    df_transposed = df.transpose()
 
-    cleaned_df_transposed = cleaned_df.transpose()
-
-    return cleaned_df, cleaned_df_transposed
+    return df, df_transposed
 
 
 def show_correlation(corr):
@@ -117,49 +112,60 @@ def show_correlation(corr):
     return
 
 
-def make_boxplot(df, title, n_rows, n_cols):
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(25, 15))
-    
+def make_boxplot(df, title, n_cols):
+    """
+    Makes a box plot from the provided dataframe
+
+    Parameters
+    ----------
+    df : DataFrame
+        The dataframe whose columns will be plotted.
+    title : str
+        The title of the boxplot.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    fig, axes = plt.subplots(1, 2, figsize=(25, 10))
+
     fig.suptitle(title, fontweight="bold", fontsize=30, y=0.95)
 
     i = 0
-    j = 0
+    # Loop through the columns and make a boxplot of each columns
     for series_name in df.columns:
-        ax = axes[i, j]
+        ax = axes[i]
 
         df[[series_name]].boxplot(ax=ax, grid=True, vert=False)
 
-        plt.setp(ax.get_xticklabels(), fontsize=20)
+        plt.setp(ax.get_xticklabels(), fontsize=25)
         plt.setp(ax.get_yticklabels(), rotation=90, ha="center", va="center",
                  fontsize=25)
 
-        # Set the axes to make the next plot on
-        if j < (n_cols - 1):
-            j += 1
-        else:
-            i += 1
-            j = 0
-            
+        i += 1
+
     plt.savefig("boxplot.png", bbox_inches="tight")
-    
+
     plt.show()
 
     return
 
 
-def show_clusters():
-    return
-
-
 df_countries, df_transposed = read_and_clean_data("data.csv")
 
-# Get the data for all countries in the most recent year (2021)
+# Get the data for all countries in the year 2021 and drop
+# countries with missing values
 df_2021 = pd.pivot_table(df_countries, values="2021", index="Country Name",
-                         columns="Series Name")
+                         columns="Series Name").dropna()
 
 # Check the correlation between the indicators
 show_correlation(df_2021.corr().round(2))
 
-# Examine the distribution of the data to enable the right scaler
-make_boxplot(df_2021, "Distribution of Indicators in 2019", 2, 3)
+selected_columns = ["GNI per capita", "Life expectancy at birth"]
+df_selected = df_2021[selected_columns]
 
+# Examine the distribution of the data to enable choosing the right scaler
+make_boxplot(
+    df_selected, "Distribution of GNI and Life Expectancy in 2019", 2)
