@@ -17,6 +17,10 @@ import sklearn.preprocessing as pp
 import sklearn.cluster as cluster
 import sklearn.metrics as skmet
 
+from scipy.optimize import curve_fit
+
+import errors as err
+
 
 def read_and_clean_data(filename):
     """
@@ -44,7 +48,7 @@ def read_and_clean_data(filename):
 
     # Rename columns, so that columns like "2002 [YR2002]" becomes "2002"
     df.columns = df.columns.str.split(" \[").str[0]
-    
+
     # Ensure the values are numeric
     df[df.columns] = df[df.columns].apply(pd.to_numeric, errors="coerce")
 
@@ -406,17 +410,18 @@ def compare_clusters(df_2021):
     None.
 
     """
-    
+
     df_to_scale = df_2021.loc[:, df_2021.columns != 'Cluster']
 
     # Scale the data uniformly using QuantileTransformer to enable comparison
     # irrespective of the indicators scale and also reduce the impact
     # of outliers when computing the mean
-    scaled_df = pd.DataFrame(pp.QuantileTransformer(random_state=10) \
-                             .fit_transform(df_to_scale),
-                             columns=df_to_scale.columns,
+    scaled_arr = pp.QuantileTransformer(
+        n_quantiles=df_to_scale.shape[0], random_state=10) \
+        .fit_transform(df_to_scale)
+    scaled_df = pd.DataFrame(scaled_arr, columns=df_to_scale.columns,
                              index=df_to_scale.index)
-        
+
     # Add the cluster column back to the scaled dataframe
     scaled_df["Cluster"] = df_2021["Cluster"]
 
@@ -436,6 +441,75 @@ def compare_clusters(df_2021):
     return
 
 
+def logistic(t, n0, g, t0):
+    """Calculates the logistic function with scale factor n0 and growth rate g"""
+
+    f = n0 / (1 + np.exp(-g*(t - t0)))
+
+    return f
+
+
+def show_fitted_model(df_gni_cluster2):
+    """
+    Create a line plot showing the original and fitted data
+
+    Parameters
+    ----------
+    df_gni_cluster2 : DataFrame
+        DataFrame containing the GNI per capita for the selected countries
+        in the second cluster.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    fig, ax = plt.subplots()
+
+    colors = plt.cm.tab20c([0, 4])
+
+    for i, column in enumerate(df_gni_cluster2.columns[1:]):
+        xdata = df_gni_cluster2["Year"]
+        ydata = df_gni_cluster2[column]
+
+        # Fit a logistic function to the data and pass the initial guess
+        # for the parameters
+        params, covariance = curve_fit(logistic, xdata, ydata,
+                                       p0=(45000, 0.05, 2010))
+
+        # Pass the obtained optimal parameters values to the logistic function
+        # to get the fitted values
+        yfit = logistic(xdata, *params)
+
+        # Plot the original and fitted GNI per capita with the same line
+        # color but different line styles
+        ax.plot(xdata, ydata, label=f"{column} (Original GNI)",
+                color=colors[i], lw=2)
+        ax.plot(xdata, yfit, "--", label=f"{column} (Fitted GNI)",
+                color=colors[i], lw=2)
+
+        ax.set_title("Comparison of Fitted and Actual Data Trends",
+                     fontweight="bold")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("GNI per capita")
+        ax.set_xlim(1990, 2020)
+        ax.legend()
+
+        # Compute the error range caused by the uncertainty of the fit
+        # and show it in the plot
+        sigma = err.error_prop(xdata, logistic, params, covariance)
+        upper_limit = yfit + sigma
+        lower_limit = yfit - sigma
+        ax.fill_between(xdata, lower_limit, upper_limit,
+                        color="yellow", alpha=0.6)
+
+    plt.show()
+
+    return
+
+
+# Read the data into pandas dataframes and clean the dataframe
 df_countries, df_transposed = read_and_clean_data("data.csv")
 
 # Get the data for all countries in the year 2021 and drop countries with
@@ -485,3 +559,20 @@ show_clusters_top_countries(df_2021)
 
 # Compare the clusters across the different indicators
 compare_clusters(df_2021)
+
+# Show line plot of the original and fitted data for 2 randomly selected
+# countries from the second cluster.
+df_gni = df_countries.xs("GNI per capita", level="Series Name")
+# Add a new "Cluster" column with matching cluster label for each country
+# and drop countries with missing data before selecting the sample
+df_gni = df_gni.join(df_2021[["Cluster"]]).dropna()
+# Select only the data for the second cluster
+df_gni_cluster2 = df_gni.pivot_table(
+    index=["Cluster", "Country Name"]).xs(1, level="Cluster")
+# Randomly select 2 countries from the cluster
+df_gni_cluster2_sample = df_gni_cluster2.sample(n=2, random_state=42).T
+df_gni_cluster2_sample.index.name = "Year"
+df_gni_cluster2_sample.reset_index(inplace=True)
+df_gni_cluster2_sample["Year"] = df_gni_cluster2_sample["Year"].astype(int)
+# Show line plot of the original and fitted data for the 2 selected countries
+show_fitted_model(df_gni_cluster2_sample)
