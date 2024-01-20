@@ -449,7 +449,7 @@ def logistic(t, n0, g, t0):
     return f
 
 
-def show_fitted_model(df_gni_cluster2):
+def show_fitted_model(df_gni_cluster2, title, forecast=False):
     """
     Create a line plot showing the original and fitted data
 
@@ -458,6 +458,12 @@ def show_fitted_model(df_gni_cluster2):
     df_gni_cluster2 : DataFrame
         DataFrame containing the GNI per capita for the selected countries
         in the second cluster.
+
+    title: str
+        The plot title
+
+    forecast: bool, default False
+        If true, the plot shows the predicted values for 8 extra years.
 
     Returns
     -------
@@ -478,30 +484,37 @@ def show_fitted_model(df_gni_cluster2):
         params, covariance = curve_fit(logistic, xdata, ydata,
                                        p0=(45000, 0.05, 2010))
 
+        # Define the x values to use for prediction so that it can be
+        # overwritten when specifying a different x values for forecasting
+        pred_x = xdata.copy()
+        label = f"{column} (Fitted GNI)"
+        if forecast:
+            pred_x = np.linspace(xdata.min(), xdata.max()+8, 100)
+            label = f"{column} (GNI Forecast)"
+
         # Pass the obtained optimal parameters values to the logistic function
         # to get the fitted values
-        yfit = logistic(xdata, *params)
+        yfit = logistic(pred_x, *params)
 
         # Plot the original and fitted GNI per capita with the same line
         # color but different line styles
         ax.plot(xdata, ydata, label=f"{column} (Original GNI)",
                 color=colors[i], lw=2)
-        ax.plot(xdata, yfit, "--", label=f"{column} (Fitted GNI)",
+        ax.plot(pred_x, yfit, "--", label=label,
                 color=colors[i], lw=2)
 
-        ax.set_title("Comparison of Fitted and Actual Data Trends",
-                     fontweight="bold")
+        ax.set_title(title, fontweight="bold")
         ax.set_xlabel("Year")
         ax.set_ylabel("GNI per capita")
-        ax.set_xlim(1990, 2020)
+        ax.set_xlim(pred_x.min(), pred_x.max())
         ax.legend()
 
         # Compute the error range caused by the uncertainty of the fit
         # and show it in the plot
-        sigma = err.error_prop(xdata, logistic, params, covariance)
+        sigma = err.error_prop(pred_x, logistic, params, covariance)
         upper_limit = yfit + sigma
         lower_limit = yfit - sigma
-        ax.fill_between(xdata, lower_limit, upper_limit,
+        ax.fill_between(pred_x, lower_limit, upper_limit,
                         color="yellow", alpha=0.6)
 
     plt.show()
@@ -575,4 +588,10 @@ df_gni_cluster2_sample.index.name = "Year"
 df_gni_cluster2_sample.reset_index(inplace=True)
 df_gni_cluster2_sample["Year"] = df_gni_cluster2_sample["Year"].astype(int)
 # Show line plot of the original and fitted data for the 2 selected countries
-show_fitted_model(df_gni_cluster2_sample)
+show_fitted_model(df_gni_cluster2_sample,
+                  "Comparison of Fitted and Actual Data Trends")
+
+# Show a line plot of the original and forecasted GNI per capital for UK
+df_gni_uk = df_gni_cluster2_sample[["Year", "United Kingdom"]]
+show_fitted_model(df_gni_uk, "Forecasted GNI per Capita for United Kingdom",
+                  forecast=True)
