@@ -9,18 +9,19 @@ Created on Fri Jan 12 17:56:06 2024
 import pandas as pd
 import numpy as np
 
-from matplotlib import colormaps as cm
 import matplotlib.pyplot as plt
+from matplotlib import colormaps as cm
+from matplotlib.lines import Line2D
 
-from sklearn.preprocessing import RobustScaler
+import sklearn.preprocessing as pp
 import sklearn.cluster as cluster
 import sklearn.metrics as skmet
 
 
 def read_and_clean_data(filename):
     """
-    Reads a data file into a dataframe, cleans and transposes
-    the dataframe
+    Reads a data file into a dataframe, cleans and transposes the dataframe.
+    Missing data will not be dropped in this function to reduce data loss.
 
     Parameters
     ----------
@@ -43,6 +44,9 @@ def read_and_clean_data(filename):
 
     # Rename columns, so that columns like "2002 [YR2002]" becomes "2002"
     df.columns = df.columns.str.split(" \[").str[0]
+    
+    # Ensure the values are numeric
+    df[df.columns] = df[df.columns].apply(pd.to_numeric, errors="coerce")
 
     df.rename(index={"Access to electricity (% of population)":
                      "Access to electricity",
@@ -176,6 +180,7 @@ def get_silhoutte_score(scaled_df, num_clusters):
         The obtained silhoutte score.
 
     """
+
     # Set up the clusterer and set a random seed to ensure replicability
     kmeans = cluster.KMeans(n_clusters=num_clusters, n_init=20,
                             random_state=10)
@@ -203,6 +208,7 @@ def plot_silhoute_scores(scaled_df):
     None.
 
     """
+
     # Calculate silhouette score for 2 to 10 clusters and plot the scores
     scores = []
     for i in range(2, 10):
@@ -218,7 +224,8 @@ def plot_silhoute_scores(scaled_df):
 
     ax.set_xlabel("Number of cluster")
     ax.set_ylabel("Silhoutte Score")
-    ax.set_title("Silhoutte Score for Different Number of Clusters")
+    ax.set_title("Silhoutte Score for Different Number of Clusters",
+                 fontweight="bold")
 
     plt.show()
 
@@ -240,6 +247,7 @@ def show_clusters(original_df, scaled_df):
         The cluster labels assigned to each data point.
 
     """
+
     # Set up the clusterer with the number of expected clusters
     kmeans = cluster.KMeans(n_clusters=3, n_init=20, random_state=10)
 
@@ -261,12 +269,12 @@ def show_clusters(original_df, scaled_df):
 
     # Plot the original data showing the kmeans clusters
     original_df.plot.scatter(x=0, y=1, s=10, c=cluster_labels, marker="o",
-                             colormap=cm["Paired"], colorbar=False, ax=ax)
+                             colormap=cm["Set1"], colorbar=False, ax=ax)
 
     # Show cluster centres
     ax.scatter(xkmeans, ykmeans, 45, "k", marker="d")
 
-    ax.set_title("Cluster of Countries Data")
+    ax.set_title("Cluster of Countries Data", fontweight="bold")
 
     plt.savefig("Cluster.png")
 
@@ -275,10 +283,164 @@ def show_clusters(original_df, scaled_df):
     return cluster_labels
 
 
+def get_clusters_frequency(df_2021):
+    """
+    Shows a bar chart displaying the number of countries in each cluster
+
+    Parameters
+    ----------
+    df_2021 : DataFrame
+        The dataframe containing the countries and the cluster they belong to.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    # Group the data by the clusters and rename the columns
+    df_clusters = df_2021.groupby("Cluster").size().reset_index()
+    df_clusters.columns = ["Cluster", "Number of Countries"]
+
+    fig, ax = plt.subplots()
+
+    ax.set_ylabel("Number of Countries")
+
+    df_clusters.plot.bar(x="Cluster", y="Number of Countries", legend=False,
+                         ax=ax, color=["tab:red", "tab:green", "tab:orange"])
+
+    ax.set_title("Number of Countries in Each Cluster", fontweight="bold")
+
+    # Add text at the middle of the bars showing the number of countries
+    # in each cluster
+    for p in ax.patches:
+        ax.annotate(p.get_height(),
+                    xy=(p.get_x() + p.get_width()/2, p.get_height() / 2),
+                    ha='center', va='center', fontsize=14, color="white",
+                    fontweight="bold")
+
+    return
+
+
+def show_clusters_top_countries(df_2021):
+    """
+    Displays the top 5 countries with the highest GNI per capita in each
+    cluster in an horizontal bar chart
+
+    Parameters
+    ----------
+    df_2021 : DataFrame
+        The dataframe containing countries data for 2021 and the
+        cluster they belong to.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    # Sort the countries in each cluster by their GNI per capita
+    df_cluster = df_2021.pivot_table(values="GNI per capita",
+                                     index=["Cluster", "Country Name"])\
+        .sort_values(by="GNI per capita")
+
+    # Extract the countries in each cluster
+    cluster0 = df_cluster.loc[0]
+    cluster1 = df_cluster.loc[1]
+    cluster2 = df_cluster.loc[2]
+
+    # Create empty dataframes to use for adding space between each cluster
+    # on the graph. Two dataframes with different index are created to avoid
+    # them overriding each other
+    df_empty = pd.DataFrame(
+        {"GNI per capita": [0]}, index=[""])
+    df_empty2 = pd.DataFrame(
+        {"GNI per capita, PPP (current international $)": [0]}, index=["  "])
+
+    # Select 5 countries with the highest GNI per capita in each cluster.
+    # Concatenate the selected countries in the order of clusters with lower
+    # GNI to clusters with hegher GNI and add the empty dataframes between
+    # the clusters.
+    selected_countries = pd.concat(
+        [cluster0[-5:], df_empty, cluster2[-5:], df_empty2, cluster1[-5:]])
+
+    fig, ax = plt.subplots(layout="constrained")
+
+    # Set different colors for bars of countries in different clusters
+    color = (["tab:red"]*6)+(["tab:orange"]*6)+(["tab:green"]*6)
+    ax.barh(y=selected_countries.index,
+            width=selected_countries["GNI per capita"], color=color)
+
+    ax.set_title("Five Countries with Highest GNI per capita in Each Cluster",
+                 fontweight="bold", y=1.03)
+    ax.set_xlabel("GNI per capital")
+
+    # Create a matching legend for the clusters
+    cluster0L = Line2D([], [], color="tab:red", label="Cluster 0", lw=6)
+    cluster1L = Line2D([], [], color="tab:green", label="Cluster 1", lw=6)
+    cluster2L = Line2D([], [], color="tab:orange", label="Cluster 2", lw=6)
+    ax.legend(handles=[cluster0L, cluster1L, cluster2L], borderpad=0.7,
+              loc="lower right", fontsize=12)
+
+    plt.savefig("clusters_sample_barplot.png")
+
+    plt.show()
+
+    return
+
+
+def compare_clusters(df_2021):
+    """
+    Plots a multiple bar chart to compare the clusters across the different
+    indicators. The indicators values are scaled to enhance visualising the
+    relative differences irrespective of the unit or scale of the indicators
+
+    Parameters
+    ----------
+    df_2021 : DataFrame
+        The dataframe containing countries data for 2021 and the
+        cluster they belong to.
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    df_to_scale = df_2021.loc[:, df_2021.columns != 'Cluster']
+
+    # Scale the data uniformly using QuantileTransformer to enable comparison
+    # irrespective of the indicators scale and also reduce the impact
+    # of outliers when computing the mean
+    scaled_df = pd.DataFrame(pp.QuantileTransformer(random_state=10) \
+                             .fit_transform(df_to_scale),
+                             columns=df_to_scale.columns,
+                             index=df_to_scale.index)
+        
+    # Add the cluster column back to the scaled dataframe
+    scaled_df["Cluster"] = df_2021["Cluster"]
+
+    # Compute the mean of each indicators for each cluster
+    df_agg = scaled_df.groupby(by="Cluster").mean().T
+
+    fig, ax = plt.subplots()
+
+    df_agg.plot.bar(ax=ax, color=["tab:red", "tab:green", "tab:orange"])
+
+    ax.set_title("Comparison of Clusters Across Different Indicators",
+                 fontweight="bold")
+    ax.set_ylabel("Scaled Values")
+
+    plt.show()
+
+    return
+
+
 df_countries, df_transposed = read_and_clean_data("data.csv")
 
-# Get the data for all countries in the year 2021 and drop
-# countries with missing values
+# Get the data for all countries in the year 2021 and drop countries with
+# with missing values. Missing values are dropped at this stage to avoid
+# loosing too much data
 df_2021 = pd.pivot_table(df_countries, values="2021", index="Country Name",
                          columns="Series Name").dropna()
 
@@ -294,7 +456,7 @@ make_boxplot(
 
 # Since the GNI column has some outliers, use RobustScaler which is
 # robust to outliers
-scaler = RobustScaler()
+scaler = pp.RobustScaler()
 scaled_arr = scaler.fit_transform(df_selected)
 df_scaled = pd.DataFrame(scaled_arr, columns=selected_columns,
                          index=df_2021.index)
@@ -314,3 +476,12 @@ cluster_labels = show_clusters(df_selected, df_scaled)
 
 # Add the cluster labels to the original 2021 data
 df_2021["Cluster"] = cluster_labels
+
+# Display a bar graph showing the number of countries in each cluster
+get_clusters_frequency(df_2021)
+
+# Show the top 5 countries with the highest GNI per capita in each cluster
+show_clusters_top_countries(df_2021)
+
+# Compare the clusters across the different indicators
+compare_clusters(df_2021)
