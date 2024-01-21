@@ -6,6 +6,8 @@ Created on Fri Jan 12 17:56:06 2024
 @author: Chidex
 """
 
+import uuid
+
 import pandas as pd
 import numpy as np
 
@@ -54,15 +56,13 @@ def read_and_clean_data(filename):
 
     df.rename(index={"Access to electricity (% of population)":
                      "Access to electricity",
-                     "Control of Corruption: Percentile Rank":
-                     "Control of Corruption",
                      "GNI per capita, PPP (current international $)":
-                     "GNI per capita",
+                     "GNI per capita (current international $)",
                      "Life expectancy at birth, total (years)":
-                     "Life expectancy at birth",
+                     "Life expectancy at birth (Years)",
                      "Political Stability and Absence of Violence/Terrorism" +
-                     ": Percentile Rank": "Political Stability",
-                     "Population growth (annual %)": "Population growth"},
+                     ": Percentile Rank":
+                     "Political Stability: Percentile Rank"},
               level=1, inplace=True)
 
     df_transposed = df.transpose()
@@ -103,7 +103,8 @@ def show_correlation(corr):
     ax.set_yticks(np.arange(columns_length), labels=corr.columns, fontsize=15)
 
     # Rotate the tick labels
-    plt.setp(ax.get_xticklabels(), rotation=-90, ha="left")
+    plt.setp(ax.get_xticklabels(), rotation=30, ha="right",
+             rotation_mode="anchor")
 
     # The threshold for which to change the text color to ensure visibility
     threshold = im.norm(corr.to_numpy().max())/2
@@ -222,7 +223,7 @@ def plot_silhoute_scores(scaled_df):
     ax.plot(scores_arr[:, 0], scores_arr[:, 1], marker="o")
     ax.set_xlim(2, 9)
 
-    ax.set_xlabel("Number of cluster")
+    ax.set_xlabel("Number of Cluster")
     ax.set_ylabel("Silhoutte Score")
     ax.set_title("Silhoutte Score for Different Number of Clusters",
                  fontweight="bold")
@@ -269,7 +270,7 @@ def show_clusters(original_df, scaled_df):
 
     # Change the cluster labels to 1, 2, 3 instead of 0, 1, 2
     adjusted_labels = [label+1 for label in cluster_labels]
-    
+
     # Plot the original data showing the kmeans clusters
     scatter = ax.scatter(original_df.iloc[:, 0], original_df.iloc[:, 1], s=10,
                          c=adjusted_labels, marker="o", cmap=cm["Set1"])
@@ -279,9 +280,9 @@ def show_clusters(original_df, scaled_df):
 
     ax.legend(*scatter.legend_elements(), title='Clusters')
 
-    ax.set_title("Country Clusters Using GNI and Life Expectancy in 2019",
+    ax.set_title("Country Clusters Using GNI and Life Expectancy in 2021",
                  fontweight="bold")
-    ax.set_xlabel("GNI per Capita, 2019")
+    ax.set_xlabel("GNI per capita (current international $)")
     ax.set_ylabel("Life Expectancy at Birth (Years)")
 
     plt.savefig("Cluster.png")
@@ -404,9 +405,10 @@ def show_clusters_top_countries(df_2021):
     """
 
     # Sort the countries in each cluster by their GNI per capita
-    df_cluster = df_2021.pivot_table(values="GNI per capita",
-                                     index=["Cluster", "Country Name"])\
-        .sort_values(by="GNI per capita")
+    df_cluster = df_2021.pivot_table(
+        values="GNI per capita (current international $)",
+        index=["Cluster", "Country Name"]).sort_values(
+            by="GNI per capita (current international $)")
 
     # Extract the countries in each cluster
     cluster1 = df_cluster.loc[1]
@@ -417,12 +419,12 @@ def show_clusters_top_countries(df_2021):
     # on the graph. Two dataframes with different index are created to avoid
     # them overriding each other
     df_empty = pd.DataFrame(
-        {"GNI per capita": [0]}, index=[""])
+        {"GNI per capita (current international $)": [0]}, index=[""])
     df_empty2 = pd.DataFrame(
-        {"GNI per capita, PPP (current international $)": [0]}, index=["  "])
+        {"GNI per capita (current international $)": [0]}, index=["  "])
 
     # Select 5 countries with the highest GNI per capita in each cluster.
-    # Concatenate the selected countries in the order of clusters with lower
+    # Concatenate the selected countries, in the order of clusters with lower
     # GNI to clusters with hegher GNI and add the empty dataframes between
     # the clusters.
     selected_countries = pd.concat(
@@ -433,11 +435,13 @@ def show_clusters_top_countries(df_2021):
     # Set different colors for bars of countries in different clusters
     color = (["tab:red"]*6)+(["tab:orange"]*6)+(["tab:green"]*6)
     ax.barh(y=selected_countries.index,
-            width=selected_countries["GNI per capita"], color=color)
+            width=selected_countries[
+                "GNI per capita (current international $)"],
+            color=color)
 
     ax.set_title("Five Countries with Highest GNI per capita in Each Cluster",
                  fontweight="bold", y=1.03)
-    ax.set_xlabel("GNI per capital")
+    ax.set_xlabel("GNI per capita (current international $)")
 
     # Create a matching legend for the clusters
     cluster1L = Line2D([], [], color="tab:red", label="Cluster 1", lw=6)
@@ -461,15 +465,18 @@ def logistic(t, n0, g, t0):
     return func
 
 
-def show_fitted_model(df_gni_cluster2, title, forecast=False):
+def show_fitted_model(df_gni, initial_params, title, forecast=False):
     """
     Create a line plot showing the original and fitted data
 
     Parameters
     ----------
-    df_gni_cluster2 : DataFrame
+    df_gni : DataFrame
         DataFrame containing the GNI per capita for the selected countries
-        in the second cluster.
+        in the cluster.
+
+    initial_params : sequence of numbers (float or int)
+        The initial guess for the parameters
 
     title: str
         The plot title
@@ -487,14 +494,14 @@ def show_fitted_model(df_gni_cluster2, title, forecast=False):
 
     colors = plt.cm.tab20c([0, 4])
 
-    for i, column in enumerate(df_gni_cluster2.columns[1:]):
-        xdata = df_gni_cluster2["Year"]
-        ydata = df_gni_cluster2[column]
+    for i, column in enumerate(df_gni.columns[1:]):
+        xdata = df_gni["Year"]
+        ydata = df_gni[column]
 
         # Fit a logistic function to the data and pass the initial guess
         # for the parameters
         params, covariance = curve_fit(logistic, xdata, ydata,
-                                       p0=(45000, 0.05, 2010))
+                                       p0=initial_params)
 
         # Define the x values to use for prediction so that it can be
         # overwritten when specifying a different x values for forecasting
@@ -515,12 +522,6 @@ def show_fitted_model(df_gni_cluster2, title, forecast=False):
         ax.plot(pred_x, yfit, "--", label=label,
                 color=colors[i], lw=2)
 
-        ax.set_title(title, fontweight="bold")
-        ax.set_xlabel("Year")
-        ax.set_ylabel("GNI per capita")
-        ax.set_xlim(pred_x.min(), pred_x.max())
-        ax.legend(frameon=False)
-
         # Compute the error range caused by the uncertainty of the fit
         # and show it in the plot
         sigma = err.error_prop(pred_x, logistic, params, covariance)
@@ -529,9 +530,17 @@ def show_fitted_model(df_gni_cluster2, title, forecast=False):
         ax.fill_between(pred_x, lower_limit, upper_limit,
                         color="yellow", alpha=0.6)
 
-    plot_name = "gni_forecast.png" if forecast else "gni_fit.png"
+    ax.set_title(title, fontweight="bold")
+    ax.set_xlabel("Year")
+    ax.set_ylabel("GNI per capita (current international $)")
+    ax.set_xlim(pred_x.min(), pred_x.max())
+    ax.legend(frameon=False)
+    ax.grid()
 
-    plt.savefig(plot_name)
+    plot_name = "gni_forecast" if forecast else "gni_fit"
+
+    # Save the plots with unique names
+    plt.savefig(f"{plot_name}-{uuid.uuid4()}.png")
 
     plt.show()
 
@@ -550,12 +559,13 @@ df_2021 = pd.pivot_table(df_countries, values="2021", index="Country Name",
 # Check the correlation between the indicators
 show_correlation(df_2021.corr().round(2))
 
-selected_columns = ["GNI per capita", "Life expectancy at birth"]
+selected_columns = ["GNI per capita (current international $)",
+                    "Life expectancy at birth (Years)"]
 df_selected = df_2021[selected_columns]
 
 # Examine the distribution of the data to enable choosing the right scaler
 make_boxplot(
-    df_selected, "Distribution of GNI and Life Expectancy in 2019", 2)
+    df_selected, "Distribution of GNI and Life Expectancy in 2021", 2)
 
 # Since the GNI column has some outliers, use RobustScaler which is
 # robust to outliers
@@ -567,7 +577,7 @@ df_scaled = pd.DataFrame(scaled_arr, columns=selected_columns,
 # Show a scatterplot of the scaled selected indicators
 fig, ax = plt.subplots()
 df_scaled.plot.scatter(x=0, y=1, s=10, marker="o", ax=ax)
-ax.set_title("Relationship Between GNI and Life Expectancy",
+ax.set_title("Relationship Between GNI and Life Expectancy in 2021",
              fontsize=16, fontweight="bold")
 plt.show()
 
@@ -589,13 +599,28 @@ compare_clusters(df_2021)
 # Show the top 5 countries with the highest GNI per capita in each cluster
 show_clusters_top_countries(df_2021)
 
+# Select GNI per capita for all examined years
+df_gni = df_countries.xs("GNI per capita (current international $)",
+                         level="Series Name")
+# Add a new "Cluster" column with matching cluster label for each country
+# and drop countries with missing data
+df_gni = df_gni.join(df_2021[["Cluster"]]).dropna()
+
+# Show line plot of the original and fitted data for 2 randomly selected
+# countries from the first cluster.
+df_gni_cluster1 = df_gni.pivot_table(
+    index=["Cluster", "Country Name"]).xs(1, level="Cluster")
+# Randomly select 2 countries from the cluster
+df_gni_cluster1_sample = df_gni_cluster1.sample(n=2, random_state=34).T
+df_gni_cluster1_sample.index.name = "Year"
+df_gni_cluster1_sample.reset_index(inplace=True)
+df_gni_cluster1_sample["Year"] = df_gni_cluster1_sample["Year"].astype(int)
+# Show line plot of the original and fitted data for the 2 selected countries
+show_fitted_model(df_gni_cluster1_sample, (7130, 0.005, 2015),
+                  "Comparison of Fitted and Actual Data Trends in Cluster 1")
+
 # Show line plot of the original and fitted data for 2 randomly selected
 # countries from the second cluster.
-df_gni = df_countries.xs("GNI per capita", level="Series Name")
-# Add a new "Cluster" column with matching cluster label for each country
-# and drop countries with missing data before selecting the sample
-df_gni = df_gni.join(df_2021[["Cluster"]]).dropna()
-# Select only the data for the second cluster
 df_gni_cluster2 = df_gni.pivot_table(
     index=["Cluster", "Country Name"]).xs(2, level="Cluster")
 # Randomly select 2 countries from the cluster
@@ -604,10 +629,20 @@ df_gni_cluster2_sample.index.name = "Year"
 df_gni_cluster2_sample.reset_index(inplace=True)
 df_gni_cluster2_sample["Year"] = df_gni_cluster2_sample["Year"].astype(int)
 # Show line plot of the original and fitted data for the 2 selected countries
-show_fitted_model(df_gni_cluster2_sample,
-                  "Comparison of Fitted and Actual Data Trends")
+show_fitted_model(df_gni_cluster2_sample, (45000, 0.05, 2010),
+                  "Comparison of Fitted and Actual Data Trends in Cluster 2")
 
-# Show a line plot of the original and forecasted GNI per capital for UK
+
+# Show a line plot of the original and forecasted GNI per capital for a
+# country in cluster 1
+df_gni_indonesia = df_gni_cluster1_sample[["Year", "Indonesia"]]
+show_fitted_model(df_gni_indonesia, (7130, 0.005, 2015),
+                  "Forecasted GNI per Capita for Indonesia",
+                  forecast=True)
+
+# Show a line plot of the original and forecasted GNI per capital for a
+# country in cluster 2
 df_gni_uk = df_gni_cluster2_sample[["Year", "United Kingdom"]]
-show_fitted_model(df_gni_uk, "Forecasted GNI per Capita for United Kingdom",
+show_fitted_model(df_gni_uk, (45000, 0.05, 2010),
+                  "Forecasted GNI per Capita for United Kingdom",
                   forecast=True)
