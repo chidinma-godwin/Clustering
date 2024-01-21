@@ -6,8 +6,6 @@ Created on Fri Jan 12 17:56:06 2024
 @author: Chidex
 """
 
-import uuid
-
 import pandas as pd
 import numpy as np
 
@@ -537,10 +535,8 @@ def show_fitted_model(df_gni, initial_params, title, forecast=False):
     ax.legend(frameon=False)
     ax.grid()
 
-    plot_name = "gni_forecast" if forecast else "gni_fit"
-
     # Save the plots with unique names
-    plt.savefig(f"{plot_name}-{uuid.uuid4()}.png")
+    plt.savefig(f"{title}.png")
 
     plt.show()
 
