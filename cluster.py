@@ -118,8 +118,6 @@ def show_correlation(corr):
             ax.text(j, i, corr.to_numpy()[i, j], ha="center", va="center",
                     color=color, fontsize=20, fontweight="bold")
 
-    plt.savefig("heatmap.png", bbox_inches="tight")
-
     plt.show()
 
     return
@@ -158,8 +156,6 @@ def make_boxplot(df, title, n_cols):
                  fontsize=25)
 
         i += 1
-
-    plt.savefig("boxplot.png", bbox_inches="tight")
 
     plt.show()
 
@@ -271,20 +267,28 @@ def show_clusters(original_df, scaled_df):
 
     fig, ax = plt.subplots()
 
+    # Change the cluster labels to 1, 2, 3 instead of 0, 1, 2
+    adjusted_labels = [label+1 for label in cluster_labels]
+    
     # Plot the original data showing the kmeans clusters
-    original_df.plot.scatter(x=0, y=1, s=10, c=cluster_labels, marker="o",
-                             colormap=cm["Set1"], colorbar=False, ax=ax)
+    scatter = ax.scatter(original_df.iloc[:, 0], original_df.iloc[:, 1], s=10,
+                         c=adjusted_labels, marker="o", cmap=cm["Set1"])
 
     # Show cluster centres
     ax.scatter(xkmeans, ykmeans, 45, "k", marker="d")
 
-    ax.set_title("Cluster of Countries Data", fontweight="bold")
+    ax.legend(*scatter.legend_elements(), title='Clusters')
+
+    ax.set_title("Country Clusters Using GNI and Life Expectancy in 2019",
+                 fontweight="bold")
+    ax.set_xlabel("GNI per Capita, 2019")
+    ax.set_ylabel("Life Expectancy at Birth (Years)")
 
     plt.savefig("Cluster.png")
 
     plt.show()
 
-    return cluster_labels
+    return adjusted_labels
 
 
 def get_clusters_frequency(df_2021):
@@ -323,72 +327,7 @@ def get_clusters_frequency(df_2021):
                     ha='center', va='center', fontsize=14, color="white",
                     fontweight="bold")
 
-    return
-
-
-def show_clusters_top_countries(df_2021):
-    """
-    Displays the top 5 countries with the highest GNI per capita in each
-    cluster in an horizontal bar chart
-
-    Parameters
-    ----------
-    df_2021 : DataFrame
-        The dataframe containing countries data for 2021 and the
-        cluster they belong to.
-
-    Returns
-    -------
-    None.
-
-    """
-
-    # Sort the countries in each cluster by their GNI per capita
-    df_cluster = df_2021.pivot_table(values="GNI per capita",
-                                     index=["Cluster", "Country Name"])\
-        .sort_values(by="GNI per capita")
-
-    # Extract the countries in each cluster
-    cluster0 = df_cluster.loc[0]
-    cluster1 = df_cluster.loc[1]
-    cluster2 = df_cluster.loc[2]
-
-    # Create empty dataframes to use for adding space between each cluster
-    # on the graph. Two dataframes with different index are created to avoid
-    # them overriding each other
-    df_empty = pd.DataFrame(
-        {"GNI per capita": [0]}, index=[""])
-    df_empty2 = pd.DataFrame(
-        {"GNI per capita, PPP (current international $)": [0]}, index=["  "])
-
-    # Select 5 countries with the highest GNI per capita in each cluster.
-    # Concatenate the selected countries in the order of clusters with lower
-    # GNI to clusters with hegher GNI and add the empty dataframes between
-    # the clusters.
-    selected_countries = pd.concat(
-        [cluster0[-5:], df_empty, cluster2[-5:], df_empty2, cluster1[-5:]])
-
-    fig, ax = plt.subplots(layout="constrained")
-
-    # Set different colors for bars of countries in different clusters
-    color = (["tab:red"]*6)+(["tab:orange"]*6)+(["tab:green"]*6)
-    ax.barh(y=selected_countries.index,
-            width=selected_countries["GNI per capita"], color=color)
-
-    ax.set_title("Five Countries with Highest GNI per capita in Each Cluster",
-                 fontweight="bold", y=1.03)
-    ax.set_xlabel("GNI per capital")
-
-    # Create a matching legend for the clusters
-    cluster0L = Line2D([], [], color="tab:red", label="Cluster 0", lw=6)
-    cluster1L = Line2D([], [], color="tab:green", label="Cluster 1", lw=6)
-    cluster2L = Line2D([], [], color="tab:orange", label="Cluster 2", lw=6)
-    ax.legend(handles=[cluster0L, cluster1L, cluster2L], borderpad=0.7,
-              loc="lower right", fontsize=12)
-
-    plt.savefig("clusters_sample_barplot.png")
-
-    plt.show()
+    plt.savefig("cluster_freq.png", bbox_inches="tight")
 
     return
 
@@ -436,17 +375,90 @@ def compare_clusters(df_2021):
                  fontweight="bold")
     ax.set_ylabel("Scaled Values")
 
+    # Rotate the tick labels
+    plt.setp(ax.get_xticklabels(), rotation=30,
+             ha="right", rotation_mode="anchor")
+
+    plt.savefig("cluster_compare.png", bbox_inches="tight")
+
+    plt.show()
+
+    return
+
+
+def show_clusters_top_countries(df_2021):
+    """
+    Displays the top 5 countries with the highest GNI per capita in each
+    cluster in an horizontal bar chart
+
+    Parameters
+    ----------
+    df_2021 : DataFrame
+        The dataframe containing countries data for 2021 and the
+        cluster they belong to.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    # Sort the countries in each cluster by their GNI per capita
+    df_cluster = df_2021.pivot_table(values="GNI per capita",
+                                     index=["Cluster", "Country Name"])\
+        .sort_values(by="GNI per capita")
+
+    # Extract the countries in each cluster
+    cluster1 = df_cluster.loc[1]
+    cluster2 = df_cluster.loc[2]
+    cluster3 = df_cluster.loc[3]
+
+    # Create empty dataframes to use for adding space between each cluster
+    # on the graph. Two dataframes with different index are created to avoid
+    # them overriding each other
+    df_empty = pd.DataFrame(
+        {"GNI per capita": [0]}, index=[""])
+    df_empty2 = pd.DataFrame(
+        {"GNI per capita, PPP (current international $)": [0]}, index=["  "])
+
+    # Select 5 countries with the highest GNI per capita in each cluster.
+    # Concatenate the selected countries in the order of clusters with lower
+    # GNI to clusters with hegher GNI and add the empty dataframes between
+    # the clusters.
+    selected_countries = pd.concat(
+        [cluster1[-5:], df_empty, cluster3[-5:], df_empty2, cluster2[-5:]])
+
+    fig, ax = plt.subplots(layout="constrained")
+
+    # Set different colors for bars of countries in different clusters
+    color = (["tab:red"]*6)+(["tab:orange"]*6)+(["tab:green"]*6)
+    ax.barh(y=selected_countries.index,
+            width=selected_countries["GNI per capita"], color=color)
+
+    ax.set_title("Five Countries with Highest GNI per capita in Each Cluster",
+                 fontweight="bold", y=1.03)
+    ax.set_xlabel("GNI per capital")
+
+    # Create a matching legend for the clusters
+    cluster1L = Line2D([], [], color="tab:red", label="Cluster 1", lw=6)
+    cluster2L = Line2D([], [], color="tab:green", label="Cluster 2", lw=6)
+    cluster3L = Line2D([], [], color="tab:orange", label="Cluster 3", lw=6)
+    ax.legend(handles=[cluster1L, cluster2L, cluster3L], borderpad=0.7,
+              loc="lower right", fontsize=12)
+
+    plt.savefig("clusters_sample_barplot.png", bbox_inches="tight")
+
     plt.show()
 
     return
 
 
 def logistic(t, n0, g, t0):
-    """Calculates the logistic function with scale factor n0 and growth rate g"""
+    """Calculates logistic function with scale factor n0 and growth rate g"""
 
-    f = n0 / (1 + np.exp(-g*(t - t0)))
+    func = n0 / (1 + np.exp(-g*(t - t0)))
 
-    return f
+    return func
 
 
 def show_fitted_model(df_gni_cluster2, title, forecast=False):
@@ -507,7 +519,7 @@ def show_fitted_model(df_gni_cluster2, title, forecast=False):
         ax.set_xlabel("Year")
         ax.set_ylabel("GNI per capita")
         ax.set_xlim(pred_x.min(), pred_x.max())
-        ax.legend()
+        ax.legend(frameon=False)
 
         # Compute the error range caused by the uncertainty of the fit
         # and show it in the plot
@@ -516,6 +528,10 @@ def show_fitted_model(df_gni_cluster2, title, forecast=False):
         lower_limit = yfit - sigma
         ax.fill_between(pred_x, lower_limit, upper_limit,
                         color="yellow", alpha=0.6)
+
+    plot_name = "gni_forecast.png" if forecast else "gni_fit.png"
+
+    plt.savefig(plot_name)
 
     plt.show()
 
@@ -567,11 +583,11 @@ df_2021["Cluster"] = cluster_labels
 # Display a bar graph showing the number of countries in each cluster
 get_clusters_frequency(df_2021)
 
-# Show the top 5 countries with the highest GNI per capita in each cluster
-show_clusters_top_countries(df_2021)
-
 # Compare the clusters across the different indicators
 compare_clusters(df_2021)
+
+# Show the top 5 countries with the highest GNI per capita in each cluster
+show_clusters_top_countries(df_2021)
 
 # Show line plot of the original and fitted data for 2 randomly selected
 # countries from the second cluster.
@@ -581,7 +597,7 @@ df_gni = df_countries.xs("GNI per capita", level="Series Name")
 df_gni = df_gni.join(df_2021[["Cluster"]]).dropna()
 # Select only the data for the second cluster
 df_gni_cluster2 = df_gni.pivot_table(
-    index=["Cluster", "Country Name"]).xs(1, level="Cluster")
+    index=["Cluster", "Country Name"]).xs(2, level="Cluster")
 # Randomly select 2 countries from the cluster
 df_gni_cluster2_sample = df_gni_cluster2.sample(n=2, random_state=42).T
 df_gni_cluster2_sample.index.name = "Year"
